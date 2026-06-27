@@ -10,7 +10,7 @@
 ## Clone and install
 
 ```bash
-git clone https://github.com/eoxvantage-com/alliant_sirqul_daily_cron.git /opt/fleetlytics
+git clone https://github.com/sagarspDev/Alliant_SIRQUL_JOB.git /opt/fleetlytics
 cd /opt/fleetlytics
 python3.12 -m venv .venv
 source .venv/bin/activate
