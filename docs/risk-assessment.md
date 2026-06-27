@@ -16,7 +16,7 @@
 
 - Large date windows can create heavy API payloads and longer import times.
 - Historical backfills can reprocess significant data volume if windows are not chosen carefully.
-- Discovery depends on `TARGET_COMPANY_ID` and current database reference data being valid.
+- Discovery depends on `companies.focus_data->'eventInfo'->>'flAccountId'` mappings being present; fleets without a matching company are skipped.
 
 ## Mitigations in this repository
 

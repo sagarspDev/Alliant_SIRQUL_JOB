@@ -120,6 +120,35 @@ class DriverConverter(BaseConverter):
         return int(raw_value)
 
     @staticmethod
+    def _resolve_default_retailer_location_id(run_dir: Path) -> int:
+        """Resolve the default retailer location ID from the run artifacts first."""
+
+        source_path = Path(run_dir) / "fleet.json"
+        if source_path.exists():
+            try:
+                payload = json.loads(source_path.read_text(encoding="utf-8").strip())
+                if isinstance(payload, dict) and isinstance(payload.get("item"), dict):
+                    item = payload["item"]
+                elif isinstance(payload, dict):
+                    item = payload
+                else:
+                    item = None
+                if isinstance(item, dict):
+                    retailer_location_id = item.get("retailerLocationId")
+                    if retailer_location_id is not None:
+                        return int(str(retailer_location_id).strip())
+            except Exception as exc:
+                LOGGER.warning("Failed to resolve retailer location from fleet.json: %s", exc)
+
+        raw_value = os.getenv("TARGET_RETAILER_LOCATION_ID", "").strip()
+        if raw_value:
+            return int(raw_value)
+        raise ValueError(
+            "Unable to resolve default retailer location ID from fleet.json; "
+            "set TARGET_RETAILER_LOCATION_ID for legacy one-shot runs."
+        )
+
+    @staticmethod
     def _extract_primary_retailer_location_id(driver: Mapping[str, Any]) -> int | None:
         """Return the first retailer location ID from the driver payload."""
 
@@ -248,7 +277,7 @@ class DriverConverter(BaseConverter):
         """Convert the latest driver records and write the SQL output."""
 
         records = self.load_source(run_dir)
-        default_retailer_location_id = self._extract_default_retailer_location_id()
+        default_retailer_location_id = self._resolve_default_retailer_location_id(run_dir)
         rows, skipped = self._resolve_rows(
             records,
             default_retailer_location_id=default_retailer_location_id,

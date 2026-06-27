@@ -116,7 +116,7 @@ Run selection:
 
 Daily orchestration:
 
-- `DAILY_WINDOW_MODE`: `rolling_24h`, `rolling_7d`, `rolling_hours`, `since_last_success`, or `env`
+- `DAILY_WINDOW_MODE`: `rolling_24h`, `rolling_7d`, `rolling_hours`, `since_last_success`, `utc_day`, or `env`
 - `DAILY_WINDOW_HOURS`: required when `DAILY_WINDOW_MODE=rolling_hours`
 - `DAILY_MAX_FLEETS`: optional positive integer cap
 - `DAILY_FAIL_POLICY`: `continue` or `fail_fast`
@@ -126,7 +126,6 @@ Database and conversion:
 
 - `SUPABASE_DB_URL`: PostgreSQL connection string, required for DB connectivity, discovery, and imports
 - `SUPABASE_SCHEMA`: schema name, default `public`
-- `TARGET_COMPANY_ID`: required for fleet conversion and discovery inserts
 - `SCORE_SNAPSHOT_DATE_MODE`: `end_date`, `run_date`, or `custom`
 - `SCORE_SNAPSHOT_DATE_CUSTOM`: required when snapshot mode is `custom`
 

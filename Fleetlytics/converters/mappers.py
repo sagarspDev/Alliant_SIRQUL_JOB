@@ -13,9 +13,8 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Mapping
-from uuid import UUID
 
-from src.config import get_company_id
+from Fleetlytics.db.lookups import resolve_company_ids_by_retailer_location_id
 
 from .base import SQLExpression
 from .coercers import to_float, to_int
@@ -74,12 +73,31 @@ def _parse_app_blob(app_info: Any) -> dict[str, Any]:
     return {}
 
 
-def map_fleet(item: Mapping[str, Any]) -> dict[str, Any]:
+def map_fleet(item: Mapping[str, Any], *, company_id: Any | None = None) -> dict[str, Any]:
     """Map a fleet JSON item to a database row."""
 
+    retailer_location_id = item.get("retailerLocationId")
+    resolved_company_id = company_id
+    if resolved_company_id is None and retailer_location_id is not None:
+        company_ids_by_retailer_location_id = resolve_company_ids_by_retailer_location_id(
+            [retailer_location_id]
+        )
+        try:
+            resolved_company_id = company_ids_by_retailer_location_id.get(
+                int(str(retailer_location_id).strip())
+            )
+        except (TypeError, ValueError):
+            resolved_company_id = None
+
+    if resolved_company_id is None:
+        raise ValueError(
+            "Unable to resolve company_id from companies.focus_data.eventInfo.flAccountId "
+            f"for retailerLocationId={retailer_location_id!r}"
+        )
+
     return {
-        "retailer_location_id": item.get("retailerLocationId"),
-        "company_id": get_company_id(),
+        "retailer_location_id": retailer_location_id,
+        "company_id": resolved_company_id,
         "internal_id": item.get("internalId"),
         "name": item.get("name"),
         "location_type": item.get("locationType"),

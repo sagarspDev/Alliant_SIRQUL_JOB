@@ -103,7 +103,7 @@ Public entrypoints:
 | `LOG_DIR` | no | `logs` | run log directory |
 | `SUPABASE_DB_URL` | converter/importer/discovery DB paths | none | Postgres connection URL |
 | `SUPABASE_SCHEMA` | no | `public` | schema for discovery queries and SQL imports |
-| `TARGET_COMPANY_ID` | fleet conversion and discovery inserts | none | UUID in `public.companies.id` |
+| `TARGET_COMPANY_ID` | fallback when company metadata is missing | none | UUID in `public.companies.id` |
 | `SCORE_SNAPSHOT_DATE_MODE` | no | `end_date` | `end_date`, `run_date`, or `custom` |
 | `SCORE_SNAPSHOT_DATE_CUSTOM` | conditional | blank | required when `SCORE_SNAPSHOT_DATE_MODE=custom` |
 | `DAILY_WINDOW_MODE` | no | `rolling_24h` | `rolling_24h`, `rolling_7d`, `rolling_hours`, `since_last_success`, `env` |
@@ -208,8 +208,8 @@ Do not expand the deferred surface unless a later phase explicitly asks for it.
 
 ## Operational Notes
 
-- Discovery insert policy: new fleets are auto-upserted only when `TARGET_COMPANY_ID` resolves to an existing `public.companies.id` row and the discovered `internal_id` is numeric so it can be cast to `retailer_location_id`.
-- Non-numeric discovered fleet IDs are written to `pending_fleets.json`; the reconciler does not invent a synthetic primary key.
+- Discovery insert policy: new fleets are auto-upserted when `public.companies.focus_data->'eventInfo'->>'flAccountId'` matches the fleet's `retailerLocationId`. `TARGET_COMPANY_ID` remains a fallback for fleets whose company metadata is missing.
+- Discovery inserts still require a resolvable `retailer_location_id`; the reconciler does not invent a synthetic primary key.
 - `since_last_success` uses `Fleetlytics/state/last_success.json` and caps lookback at 30 days.
 - `last_success.json` is only updated when `run_daily()` exits `0` and `dry_run=False`.
 - `daily_health.json` is overwritten after every cron-wrapper invocation, including `locked` and `crashed` outcomes.
@@ -220,8 +220,8 @@ Do not expand the deferred surface unless a later phase explicitly asks for it.
 
 ## Open Questions / Next Phase Candidates
 
-- Multi-company support: `TARGET_COMPANY_ID` is currently single-valued; the daily pipeline assumes one company.
-- `retailer_location_id` derivation policy (D2): the `int(internal_id)` fallback is brittle; revisit when canonical mapping is known.
+- Multi-company support: the daily pipeline now resolves company-to-fleet mapping from `public.companies.focus_data->'eventInfo'->>'flAccountId'`, with `TARGET_COMPANY_ID` as a fallback only.
+- `retailer_location_id` derivation policy (D2): current discovery prefers the raw fleet payload's `retailerLocationId`, then falls back to other numeric identifiers when needed; confirm the canonical API field if the upstream contract changes.
 - Alerting on `daily_health.json` (email/Slack/PagerDuty webhook).
 - Backfill mode: re-pull a historical UTC datetime range across all fleets without disturbing the watermark.
 - `since_last_success` window mode hasn't been exercised in anger; add an integration test once a real schedule is running.

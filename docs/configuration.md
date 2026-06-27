@@ -15,7 +15,7 @@ All datetimes are UTC and use `YYYY-MM-DD HH:MM:SS` unless noted otherwise.
 | `TARGET_RETAILER_LOCATION_ID` | Default fleet selector for one-shot pulls and latest-run resolution | Conditional | Blank | `353787` |
 | `DATE_RANGE_START` | Explicit start datetime for one-shot or `DAILY_WINDOW_MODE=env` | Conditional | Blank | `2026-06-01 00:00:00` |
 | `DATE_RANGE_END` | Explicit end datetime for one-shot or `DAILY_WINDOW_MODE=env` | Conditional | Blank | `2026-06-02 00:00:00` |
-| `DAILY_WINDOW_MODE` | Daily window calculation mode | No | `rolling_24h` | `since_last_success` |
+| `DAILY_WINDOW_MODE` | Daily window calculation mode | No | `rolling_24h` | `utc_day` |
 | `DAILY_WINDOW_HOURS` | Window length when `DAILY_WINDOW_MODE=rolling_hours` | Conditional | Blank | `6` |
 | `DAILY_MAX_FLEETS` | Max fleets processed in one daily run | No | Blank | `25` |
 | `DAILY_FAIL_POLICY` | Daily pipeline failure strategy | No | `continue` | `fail_fast` |
@@ -33,7 +33,6 @@ All datetimes are UTC and use `YYYY-MM-DD HH:MM:SS` unless noted otherwise.
 | `HTTP_BACKOFF_FACTOR` | HTTP retry backoff factor | No | `0.5` | `1.0` |
 | `SUPABASE_DB_URL` | PostgreSQL/Supabase DSN | Conditional | None | `postgresql://user:pass@db-host:5432/dbname` |
 | `SUPABASE_SCHEMA` | Target schema name | No | `public` | `public` |
-| `TARGET_COMPANY_ID` | Company UUID used for fleet conversion and discovery inserts | Conditional | None | `00000000-0000-0000-0000-000000000000` |
 | `SCORE_SNAPSHOT_DATE_MODE` | Driver score snapshot date source | No | `end_date` | `custom` |
 | `SCORE_SNAPSHOT_DATE_CUSTOM` | Snapshot date used when snapshot mode is `custom` | Conditional | Blank | `2026-06-27` |
 
@@ -42,4 +41,5 @@ Conditional guidance:
 - `TARGET_RETAILER_LOCATION_ID` is required when running `python main.py` without `--retailer-location-id` and when converter/importer commands omit `--run-dir`.
 - `DATE_RANGE_START` and `DATE_RANGE_END` must be set together or both omitted.
 - `SUPABASE_DB_URL` is required for DB connectivity checks, discovery, conversion lookups, import, and trip-detail backfill.
-- `TARGET_COMPANY_ID` is required for fleet conversion and discovery insert flows.
+- `DAILY_WINDOW_MODE=utc_day` resolves each run to `00:00:00 UTC` through `00:00:00 UTC` of the next day.
+- Company-to-fleet mapping is resolved from `public.companies.focus_data->'eventInfo'->>'flAccountId'`; fleets without a matching company are skipped.

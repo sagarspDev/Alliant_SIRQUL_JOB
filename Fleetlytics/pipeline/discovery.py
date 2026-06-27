@@ -14,17 +14,17 @@ from psycopg.types.json import Jsonb
 
 try:  # pragma: no cover - execution context dependent
     from .. import fleet_api
-    from ..src.config import get_company_id, get_db_schema, get_db_url
+    from ..db.lookups import resolve_company_ids_by_retailer_location_id
+    from ..src.config import get_db_schema, get_db_url
     from ..src.logger import get_logger
 except ImportError:  # pragma: no cover - fallback for direct execution from Fleetlytics/
     import fleet_api
-    from src.config import get_company_id, get_db_schema, get_db_url
+    from Fleetlytics.db.lookups import resolve_company_ids_by_retailer_location_id
+    from src.config import get_db_schema, get_db_url
     from src.logger import get_logger
 
 
 LOGGER = get_logger(__name__)
-_TARGET_COMPANY_EXISTS_CACHE: bool | None = None
-_TARGET_COMPANY_CACHE_KEY: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,39 +99,38 @@ def discover_and_reconcile_fleets(
         _log_summary(result, dry_run)
         return result
 
-    company_id: Any | None = None
-    company_exists = False
-    try:
-        # NOTE: The prompt described TARGET_COMPANY_ID / sirqul_fleet.company_id as BIGINT,
-        # but the checked-in DDL and src.config.get_company_id() both treat it as UUID.
-        # Use the repo's validated UUID contract until the database schema says otherwise.
-        company_id = get_company_id()
-        company_exists = _target_company_exists(company_id=company_id)
-    except Exception as exc:
-        result.errors.append(f"TARGET_COMPANY_ID resolution failed: {exc}")
+    retailer_location_ids = [
+        retailer_location_id
+        for retailer_location_id in (
+            _extract_retailer_location_id(discovered.raw) for discovered in discovered_fleets
+        )
+        if retailer_location_id is not None
+    ]
+    company_ids_by_retailer_location_id = resolve_company_ids_by_retailer_location_id(
+        retailer_location_ids
+    )
 
-    upsert_candidates: list[DiscoveredFleet] = []
+    upsert_candidates: list[tuple[DiscoveredFleet, int, Any]] = []
     for discovered in discovered_fleets:
         if discovered.internal_id in existing_by_internal_id:
             result.known.append(discovered)
             continue
-        if company_exists:
-            upsert_candidates.append(discovered)
-            continue
-        result.pending.append(discovered)
 
-    insertable_rows: list[tuple[int, Any, str, str, bool, Jsonb, None]] = []
-    would_insert: list[DiscoveredFleet] = []
-    for discovered in upsert_candidates:
-        retailer_location_id = _derive_retailer_location_id(discovered.internal_id)
+        retailer_location_id = _extract_retailer_location_id(discovered.raw)
         if retailer_location_id is None:
-            result.errors.append(
-                "Non-numeric internal_id cannot be used as retailer_location_id "
-                f"for discovery insert: internal_id={discovered.internal_id!r}"
-            )
             result.pending.append(discovered)
             continue
 
+        resolved_company_id = company_ids_by_retailer_location_id.get(retailer_location_id)
+        if resolved_company_id is None:
+            result.pending.append(discovered)
+            continue
+
+        upsert_candidates.append((discovered, retailer_location_id, resolved_company_id))
+
+    insertable_rows: list[tuple[int, Any, str, str, bool, Jsonb, None]] = []
+    would_insert: list[DiscoveredFleet] = []
+    for discovered, retailer_location_id, company_id in upsert_candidates:
         name = discovered.name.strip() or discovered.internal_id
         if not discovered.name.strip():
             LOGGER.warning(
@@ -244,33 +243,20 @@ def _load_existing_fleets(*, schema: str) -> dict[str, dict[str, Any]]:
     return existing
 
 
-def _target_company_exists(*, company_id: Any) -> bool:
-    """Check whether TARGET_COMPANY_ID resolves to a real companies row."""
+def _extract_retailer_location_id(row: dict[str, Any]) -> int | None:
+    """Resolve the retailer location ID from a discovered fleet payload."""
 
-    global _TARGET_COMPANY_EXISTS_CACHE, _TARGET_COMPANY_CACHE_KEY
-
-    cache_key = str(company_id)
-    if _TARGET_COMPANY_EXISTS_CACHE is not None and _TARGET_COMPANY_CACHE_KEY == cache_key:
-        return _TARGET_COMPANY_EXISTS_CACHE
-
-    with psycopg.connect(get_db_url(), autocommit=True) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT id FROM public.companies WHERE id = %s", (company_id,))
-            _TARGET_COMPANY_EXISTS_CACHE = cursor.fetchone() is not None
-            _TARGET_COMPANY_CACHE_KEY = cache_key
-    return bool(_TARGET_COMPANY_EXISTS_CACHE)
-
-
-def _derive_retailer_location_id(internal_id: str) -> int | None:
-    """
-    Derive retailer_location_id for discovery-driven inserts.
-
-    NOTE: Current policy is numeric-internal-id only because sirqul_fleet declares
-    retailer_location_id as a non-generated BIGINT primary key. Revisit this when
-    the canonical mapping between /fleets/search identifiers and retailer locations
-    is confirmed.
-    """
-
+    for key in ("retailerLocationId", "retailer_location_id", "locationId", "id"):
+        value = row.get(key)
+        if value is None:
+            continue
+        try:
+            return int(str(value).strip())
+        except (TypeError, ValueError):
+            continue
+    internal_id = row.get("internalId") or row.get("internal_id") or row.get("fleetId")
+    if internal_id is None:
+        return None
     try:
         return int(str(internal_id).strip())
     except (TypeError, ValueError):

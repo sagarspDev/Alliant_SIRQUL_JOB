@@ -102,10 +102,8 @@ def build_upsert_sql(
     update_assignments.extend(_quote_identifier(column) + " = now()" for column in audit_columns)
 
     if update_assignments:
-        comparison_columns = [
-            column for column in update_columns if column not in audit_columns
-        ]
-        where_clause = " AND ".join(
+        comparison_columns = [column for column in update_columns if column not in audit_columns]
+        where_clause = " OR ".join(
             _quote_identifier(table)
             + "."
             + _quote_identifier(column)

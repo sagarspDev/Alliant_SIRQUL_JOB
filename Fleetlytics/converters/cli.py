@@ -11,7 +11,7 @@ from typing import Sequence
 from dotenv import load_dotenv
 
 from Fleetlytics.converters.api import ENTITY_ORDER, convert_entity
-from src.config import ConfigError, get_company_id, get_latest_run_dir
+from src.config import get_latest_run_dir
 
 
 ENTITY_CHOICES = (
@@ -61,14 +61,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     entities = list(ENTITY_ORDER) if args.entity == "all" else [args.entity]
 
     LOGGER.info("resolved_run_dir=%s", run_dir)
-    if "fleet" in entities:
-        try:
-            company_id = get_company_id()
-        except ConfigError as exc:
-            raise SystemExit(
-                "TARGET_COMPANY_ID is required before generating fleet SQL."
-            ) from exc
-        LOGGER.info("company_id=%s", company_id)
     for entity in entities:
         try:
             result = convert_entity(entity, run_dir)

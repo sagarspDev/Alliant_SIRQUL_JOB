@@ -35,6 +35,7 @@ def resolve_daily_window() -> DateWindow:
       - rolling_7d
       - rolling_hours
       - since_last_success
+      - utc_day
       - env
     """
 
@@ -126,6 +127,14 @@ def _resolve_window_for_mode(*, mode: str, now: datetime, state_path: Path | Non
         # NOTE: Future-dated watermarks are clamped to `now` so the runner does
         # not emit an invalid start > end window after clock skew or manual edits.
         resolved = DateWindow(start=min(max(last_success_end, floor_dt), now), end=now, source=mode)
+        return _validate_window(resolved)
+    if mode == "utc_day":
+        day_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+        resolved = DateWindow(
+            start=day_start,
+            end=day_start + timedelta(days=1),
+            source=mode,
+        )
         return _validate_window(resolved)
     if mode == "env":
         resolved = DateWindow(

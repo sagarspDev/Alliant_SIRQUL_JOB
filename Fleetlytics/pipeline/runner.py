@@ -318,9 +318,14 @@ def _load_roster(*, max_fleets: int | None) -> list[_RosterFleet]:
         SELECT retailer_location_id, internal_id, name, active
         FROM {}.sirqul_fleet
         WHERE active = TRUE
+          AND EXISTS (
+              SELECT 1
+              FROM public.companies c
+              WHERE c.focus_data->'eventInfo'->>'flAccountId' = {}.sirqul_fleet.retailer_location_id::text
+          )
         ORDER BY retailer_location_id
         """
-    ).format(sql.Identifier(schema))
+    ).format(sql.Identifier(schema), sql.Identifier(schema))
 
     roster: list[_RosterFleet] = []
     with psycopg.connect(get_db_url(), autocommit=True) as connection:
