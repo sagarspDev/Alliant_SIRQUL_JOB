@@ -1,0 +1,24 @@
+# /etc/systemd/system/fleetlytics@.service
+[Unit]
+Description=Fleetlytics scheduled run for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fleetlytics
+Group=fleetlytics
+WorkingDirectory=/opt/fleetlytics
+ExecStart=/opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.%i -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0
+
+# /etc/systemd/system/fleetlytics@.timer
+[Unit]
+Description=Fleetlytics timer for %i
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+Persistent=true
+Unit=fleetlytics@%i.service
+
+[Install]
+WantedBy=timers.target

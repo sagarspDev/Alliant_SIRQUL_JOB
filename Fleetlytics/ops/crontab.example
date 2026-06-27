@@ -1,0 +1,22 @@
+# Fleetlytics cron examples
+# Replace /opt/fleetlytics with your checkout path and choose the matching env file.
+# All examples run in UTC and write cron stdout/stderr to an environment-specific file.
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+CRON_TZ=UTC
+
+# Every 15 minutes
+*/15 * * * * /opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.production -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0 >> /var/log/fleetlytics/production/cron_stdout.log 2>&1
+
+# Every hour, on the hour
+0 * * * * /opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.uat -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0 >> /var/log/fleetlytics/uat/cron_stdout.log 2>&1
+
+# Daily at 08:00 UTC
+0 8 * * * /opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.production -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0 >> /var/log/fleetlytics/production/cron_stdout.log 2>&1
+
+# Weekly on Monday at 02:00 UTC
+0 2 * * 1 /opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.uat -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0 >> /var/log/fleetlytics/uat/cron_stdout.log 2>&1
+
+# Monthly on the 1st day at 03:00 UTC
+0 3 1 * * /opt/fleetlytics/scripts/run_fleetlytics.sh --env-file /opt/fleetlytics/config/environments/.env.test -- python -m Fleetlytics.pipeline.cron --lock-wait-seconds 0 >> /var/log/fleetlytics/test/cron_stdout.log 2>&1
